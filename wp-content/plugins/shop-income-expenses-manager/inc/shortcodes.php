@@ -285,11 +285,16 @@ function sie_get_record()
     $record = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_name WHERE id = %d", $id));
 
     if ($record) {
+        // Ensure dates are in the correct format
+        $record->income_date = date('Y-m-d', strtotime($record->income_date));
+        $record->expenses_date = date('Y-m-d', strtotime($record->expenses_date));
+
         wp_send_json_success($record);
     } else {
         wp_send_json_error('Record not found');
     }
 }
+
 
 add_action('wp_ajax_sie_get_record', 'sie_get_record');
 
