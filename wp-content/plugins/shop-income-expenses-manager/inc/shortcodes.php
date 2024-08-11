@@ -295,8 +295,47 @@ function sie_get_record()
     }
 }
 
-
 add_action('wp_ajax_sie_get_record', 'sie_get_record');
+
+function sie_edit_record()
+{
+    global $wpdb;
+
+    $id = intval($_POST['edit_id']);
+    $type = sanitize_text_field($_POST['edit_type']);
+
+    $table_name = $type === 'expense' ? $wpdb->prefix . 'sie_expenses' : $wpdb->prefix . 'sie_income';
+
+    $data = array(
+        $type === 'expense' ? 'expenses_amount' : 'income_amount' => floatval($_POST['edit_amount']),
+        $type === 'expense' ? 'expenses_date' : 'income_date' => sanitize_text_field($_POST['edit_date']),
+    );
+
+    if ($type === 'expense') {
+        $data['description'] = sanitize_text_field($_POST['edit_description']);
+    } else {
+        $data['product_name'] = sanitize_text_field($_POST['edit_product_name']);
+    }
+
+    $updated = $wpdb->update(
+        $table_name,
+        $data,
+        array('id' => $id),
+        array('%f', '%s', '%s'),
+        array('%d')
+    );
+
+    if ($updated !== false) {
+        $record = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_name WHERE id = %d", $id));
+        wp_send_json_success($record);
+    } else {
+        wp_send_json_error('Failed to update the record.');
+    }
+
+    wp_die(); // This is required to terminate immediately and return a proper response
+}
+
+add_action('wp_ajax_sie_edit_record', 'sie_edit_record');
 
 
 function sie_delete_record()
@@ -325,3 +364,27 @@ function sie_delete_record()
 
 add_action('wp_ajax_sie_delete_record', 'sie_delete_record');
 add_action('wp_ajax_nopriv_sie_delete_record', 'sie_delete_record');
+
+function sie_get_all_records()
+{
+    global $wpdb;
+    
+    $income_table = $wpdb->prefix . 'sie_income';
+    $expense_table = $wpdb->prefix . 'sie_expenses';
+
+    $income_records = $wpdb->get_results("SELECT * FROM $income_table");
+    $expense_records = $wpdb->get_results("SELECT * FROM $expense_table");
+
+    if ($income_records !== false && $expense_records !== false) {
+        wp_send_json_success(array(
+            'income' => $income_records,
+            'expenses' => $expense_records
+        ));
+    } else {
+        wp_send_json_error('Failed to retrieve records.');
+    }
+
+    wp_die();
+}
+
+add_action('wp_ajax_sie_get_all_records', 'sie_get_all_records');
