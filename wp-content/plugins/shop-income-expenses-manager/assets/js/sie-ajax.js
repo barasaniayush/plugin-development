@@ -193,3 +193,105 @@ function updateTable() {
         }
     });
 }
+
+jQuery(document).ready(function($) {
+    // Handle Add Income Form Submission
+    $('#addIncome form').submit(function(e) {
+        e.preventDefault(); // Prevent the default form submission
+
+        var formData = $(this).serialize();
+
+        $.ajax({
+            url: sieAjax.ajaxurl,
+            method: 'POST',
+            data: formData + '&action=sie_add_income',
+            success: function(response) {
+                if (response.success) {
+                    alert(response.data); // Display success message
+                    updateTable(); // Update table with new data
+                    $('#addIncome form')[0].reset(); // Reset the form
+                } else {
+                    alert(response.data); // Display error message
+                }
+            }
+        });
+    });
+
+    // Handle Add Expense Form Submission
+    $('#addExpense form').submit(function(e) {
+        e.preventDefault(); // Prevent the default form submission
+
+        var formData = $(this).serialize();
+
+        $.ajax({
+            url: sieAjax.ajaxurl,
+            method: 'POST',
+            data: formData + '&action=sie_add_expense',
+            success: function(response) {
+                if (response.success) {
+                    alert(response.data); // Display success message
+                    updateTable(); // Update table with new data
+                    $('#addExpense form')[0].reset(); // Reset the form
+                } else {
+                    alert(response.data); // Display error message
+                }
+            }
+        });
+    });
+
+    // Function to update table data without refreshing the page
+    function updateTable() {
+        $.ajax({
+            url: sieAjax.ajaxurl,
+            method: 'POST',
+            data: {
+                action: 'sie_get_all_records'
+            },
+            success: function(response) {
+                if (response.success) {
+                    var incomeTable = $('#incomeRecords table');
+                    var expenseTable = $('#expenseRecords table');
+
+                    // Update income records
+                    incomeTable.html(`
+                        <tr><th>Product Name</th><th>Amount</th><th>Date</th><th>Actions</th></tr>
+                    `);
+                    $.each(response.data.income, function(index, record) {
+                        incomeTable.append(`
+                            <tr>
+                                <td>${record.product_name}</td>
+                                <td>${record.income_amount}</td>
+                                <td>${record.income_date}</td>
+                                <td>
+                                    <button class="edit-btn" data-type="income" data-id="${record.id}">Edit</button>
+                                    <button class="delete-btn" data-type="income" data-id="${record.id}">Delete</button>
+                                </td>
+                            </tr>
+                        `);
+                    });
+
+                    // Update expense records
+                    expenseTable.html(`
+                        <tr><th>Description</th><th>Amount</th><th>Date</th><th>Actions</th></tr>
+                    `);
+                    $.each(response.data.expenses, function(index, record) {
+                        expenseTable.append(`
+                            <tr>
+                                <td>${record.description}</td>
+                                <td>${record.expenses_amount}</td>
+                                <td>${record.expenses_date}</td>
+                                <td>
+                                    <button class="edit-btn" data-type="expense" data-id="${record.id}">Edit</button>
+                                    <button class="delete-btn" data-type="expense" data-id="${record.id}">Delete</button>
+                                </td>
+                            </tr>
+                        `);
+                    });
+                } else {
+                    alert('Failed to load records.');
+                }
+            }
+        });
+    }
+});
+

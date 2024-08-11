@@ -15,6 +15,7 @@ function sie_display_income_expenses()
             // Handle adding income records
             $product_name = sanitize_text_field($_POST['product_name']);
             $amount = floatval($_POST['amount']);
+            $income_date = sanitize_text_field($_POST['income_date']);
 
             $table_name = $wpdb->prefix . 'sie_income';
 
@@ -23,7 +24,7 @@ function sie_display_income_expenses()
                 array(
                     'product_name' => $product_name,
                     'income_amount' => $amount,
-                    'income_date' => current_time('mysql')
+                    'income_date' => $income_date,
                 ),
                 array('%s', '%f', '%s')
             );
@@ -89,6 +90,9 @@ function sie_display_income_expenses()
                 <label for="amount">Amount Collected:</label>
                 <input type="number" id="amount" name="amount" step="0.01" required>
 
+                <label for="income_date">Date:</label>
+                <input type="date" id="income_date" name="income_date" value="<?php echo date('Y-m-d'); ?>" required>
+
                 <input type="submit" name="sie_submit" value="Submit">
             </form>
         </div>
@@ -103,7 +107,7 @@ function sie_display_income_expenses()
                 <input type="number" id="expense_amount" name="expense_amount" step="0.01" required>
 
                 <label for="expense_date">Date:</label>
-                <input type="date" id="expense_date" name="expense_date" required>
+                <input type="date" id="expense_date" name="expense_date" value="<?php echo date('Y-m-d'); ?>" required>
 
                 <input type="submit" name="sie_expense_submit" value="Submit">
             </form>
@@ -295,6 +299,62 @@ function sie_get_record()
 
 add_action('wp_ajax_sie_get_record', 'sie_get_record');
 
+function sie_add_income() {
+    global $wpdb;
+
+    $product_name = sanitize_text_field($_POST['product_name']);
+    $amount = floatval($_POST['amount']);
+    $income_date = sanitize_text_field($_POST['income_date']);
+
+    $table_name = $wpdb->prefix . 'sie_income';
+    $inserted = $wpdb->insert(
+        $table_name,
+        array(
+            'product_name' => $product_name,
+            'income_amount' => $amount,
+            'income_date' => $income_date,
+        ),
+        array('%s', '%f', '%s')
+    );
+
+    if ($inserted !== false) {
+        wp_send_json_success('Income record added successfully.');
+    } else {
+        wp_send_json_error('Failed to add income record.');
+    }
+
+    wp_die();
+}
+add_action('wp_ajax_sie_add_income', 'sie_add_income');
+
+function sie_add_expense() {
+    global $wpdb;
+
+    $description = sanitize_text_field($_POST['expense_description']);
+    $amount = floatval($_POST['expense_amount']);
+    $date = sanitize_text_field($_POST['expense_date']);
+
+    $table_name = $wpdb->prefix . 'sie_expenses';
+    $inserted = $wpdb->insert(
+        $table_name,
+        array(
+            'description' => $description,
+            'expenses_amount' => $amount,
+            'expenses_date' => $date
+        ),
+        array('%s', '%f', '%s')
+    );
+
+    if ($inserted !== false) {
+        wp_send_json_success('Expense record added successfully.');
+    } else {
+        wp_send_json_error('Failed to add expense record.');
+    }
+
+    wp_die();
+}
+add_action('wp_ajax_sie_add_expense', 'sie_add_expense');
+
 function sie_edit_record()
 {
     global $wpdb;
@@ -386,3 +446,139 @@ function sie_get_all_records()
 }
 
 add_action('wp_ajax_sie_get_all_records', 'sie_get_all_records');
+
+?>
+
+<script>
+    jQuery(document).ready(function($) {
+        // Handle Add Income Form Submission
+        $('form[action=""]').on('submit', function(e) {
+            e.preventDefault(); // Prevent traditional form submission
+
+            var form = $(this);
+            var formData = form.serialize();
+            var action = form.find('input[type="submit"]').attr('name') === 'sie_submit' ? 'add_income' : 'add_expense';
+
+            $.ajax({
+                url: '<?php echo admin_url("admin-ajax.php"); ?>',
+                method: 'POST',
+                data: formData + '&action=' + action,
+                success: function(response) {
+                    if (response.success) {
+                        alert('Record added successfully.');
+                        updateTable(); // Update the table with new records
+                        form[0].reset(); // Reset the form fields
+                    } else {
+                        alert('Failed to add the record.');
+                    }
+                }
+            });
+        });
+
+        // Handle Edit Form Submission
+        $('#editForm').on('submit', function(e) {
+            e.preventDefault(); // Prevent traditional form submission
+
+            var formData = $(this).serialize();
+
+            $.ajax({
+                url: '<?php echo admin_url("admin-ajax.php"); ?>',
+                method: 'POST',
+                data: formData + '&action=sie_edit_record',
+                success: function(response) {
+                    if (response.success) {
+                        alert('Record updated successfully.');
+                        $('#editModal').hide(); // Hide the modal
+                        updateTable(); // Update the table with new records
+                    } else {
+                        alert('Failed to update the record.');
+                    }
+                }
+            });
+        });
+
+        // Handle Delete Button Click
+        $(document).on('click', '.delete-btn', function() {
+            if (confirm('Are you sure you want to delete this record?')) {
+                var type = $(this).data('type');
+                var id = $(this).data('id');
+
+                $.ajax({
+                    url: '<?php echo admin_url("admin-ajax.php"); ?>',
+                    method: 'POST',
+                    data: {
+                        action: 'sie_delete_record',
+                        type: type,
+                        id: id
+                    },
+                    success: function(response) {
+                        if (response.success) {
+                            alert('Record deleted successfully.');
+                            updateTable(); // Update the table with new records
+                        } else {
+                            alert('Failed to delete the record.');
+                        }
+                    }
+                });
+            }
+        });
+
+        // Update Table with New Records
+        function updateTable() {
+            $.ajax({
+                url: '<?php echo admin_url("admin-ajax.php"); ?>',
+                method: 'POST',
+                data: {
+                    action: 'sie_get_all_records'
+                },
+                success: function(response) {
+                    if (response.success) {
+                        var incomeTable = $('#incomeRecords table');
+                        var expenseTable = $('#expenseRecords table');
+
+                        // Update income records
+                        incomeTable.html(`
+                            <tr><th>Product Name</th><th>Amount</th><th>Date</th><th>Actions</th></tr>
+                        `);
+                        $.each(response.data.income, function(index, record) {
+                            incomeTable.append(`
+                                <tr>
+                                    <td>${record.product_name}</td>
+                                    <td>${record.income_amount}</td>
+                                    <td>${record.income_date}</td>
+                                    <td>
+                                        <button class="edit-btn" data-type="income" data-id="${record.id}">Edit</button>
+                                        <button class="delete-btn" data-type="income" data-id="${record.id}">Delete</button>
+                                    </td>
+                                </tr>
+                            `);
+                        });
+
+                        // Update expense records
+                        expenseTable.html(`
+                            <tr><th>Description</th><th>Amount</th><th>Date</th><th>Actions</th></tr>
+                        `);
+                        $.each(response.data.expenses, function(index, record) {
+                            expenseTable.append(`
+                                <tr>
+                                    <td>${record.description}</td>
+                                    <td>${record.expenses_amount}</td>
+                                    <td>${record.expenses_date}</td>
+                                    <td>
+                                        <button class="edit-btn" data-type="expense" data-id="${record.id}">Edit</button>
+                                        <button class="delete-btn" data-type="expense" data-id="${record.id}">Delete</button>
+                                    </td>
+                                </tr>
+                            `);
+                        });
+                    } else {
+                        alert('Failed to load records.');
+                    }
+                }
+            });
+        }
+
+        // Open the default tab
+        $('.tablinks:first').click();
+    });
+</script>
