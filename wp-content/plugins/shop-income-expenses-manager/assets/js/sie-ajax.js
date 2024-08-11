@@ -50,3 +50,31 @@ jQuery(document).ready(function($) {
         });
     });
 });
+
+jQuery(document).ready(function($) {
+    // Use event delegation for dynamically generated elements
+    $(document).on('click', '.delete-btn', function() {
+        if (confirm('Are you sure you want to delete this record?')) {
+            var type = $(this).data('type');
+            var id = $(this).data('id');
+
+            $.ajax({
+                url: sieAjax.ajaxurl,
+                method: 'POST',
+                data: {
+                    action: 'sie_delete_record',
+                    type: type,
+                    id: id
+                },
+                success: function(response) {
+                    if (response.success) {
+                        alert('Record deleted successfully.');
+                        location.reload(); // Refresh the page to show the updated records
+                    } else {
+                        alert('Failed to delete the record.');
+                    }
+                }
+            });
+        }
+    });
+});

@@ -1,22 +1,23 @@
 <?php
+
 /**
  * Displays a form to input income and expenses, and displays a report of the data.
  *
  * @return string The HTML content to display the form and the report.
  */
-
 function sie_display_income_expenses()
 {
     ob_start(); // Start output buffering
 
     // Form handling
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        global $wpdb;
+
         if (isset($_POST['sie_submit'])) {
             // Handle adding income records
             $product_name = sanitize_text_field($_POST['product_name']);
             $amount = floatval($_POST['amount']);
 
-            global $wpdb;
             $table_name = $wpdb->prefix . 'sie_income';
 
             $wpdb->insert(
@@ -34,7 +35,6 @@ function sie_display_income_expenses()
             $amount = floatval($_POST['expense_amount']);
             $date = sanitize_text_field($_POST['expense_date']);
 
-            global $wpdb;
             $table_name = $wpdb->prefix . 'sie_expenses';
 
             $wpdb->insert(
@@ -48,15 +48,15 @@ function sie_display_income_expenses()
             );
         } elseif (isset($_POST['sie_edit_submit'])) {
             // Handle editing records
-            global $wpdb;
-            $table_name = $_POST['edit_type'] === 'expense' ? $wpdb->prefix . 'sie_expenses' : $wpdb->prefix . 'sie_income';
+            $edit_type = sanitize_text_field($_POST['edit_type']);
+            $table_name = $edit_type === 'expense' ? $wpdb->prefix . 'sie_expenses' : $wpdb->prefix . 'sie_income';
 
             $data = array(
-                'amount' => floatval($_POST['edit_amount']),
-                'date' => sanitize_text_field($_POST['edit_date'])
+                $edit_type === 'expense' ? 'expenses_amount' : 'income_amount' => floatval($_POST['edit_amount']),
+                $edit_type === 'expense' ? 'expenses_date' : 'income_date' => sanitize_text_field($_POST['edit_date']),
             );
 
-            if ($_POST['edit_type'] === 'expense') {
+            if ($edit_type === 'expense') {
                 $data['description'] = sanitize_text_field($_POST['edit_description']);
             } else {
                 $data['product_name'] = sanitize_text_field($_POST['edit_product_name']);
@@ -66,7 +66,7 @@ function sie_display_income_expenses()
                 $table_name,
                 $data,
                 array('id' => intval($_POST['edit_id'])),
-                array('%f', '%s'),
+                array('%f', '%s', '%s'),
                 array('%d')
             );
         }
@@ -74,7 +74,6 @@ function sie_display_income_expenses()
 
     // Output the form and data display
 ?>
-
     <div class="sie-report">
         <h2>Income and Expenditure Report</h2>
         <div class="tab">
@@ -129,7 +128,10 @@ function sie_display_income_expenses()
                         echo '<td>' . esc_html($row->product_name) . '</td>';
                         echo '<td>' . esc_html($row->income_amount) . '</td>';
                         echo '<td>' . esc_html($row->income_date) . '</td>';
-                        echo '<td><button class="edit-btn" data-type="income" data-id="' . esc_attr($row->id) . '">Edit</button></td>';
+                        echo '<td>
+                             <button class="edit-btn" data-type="income" data-id="' . esc_attr($row->id) . '">Edit</button>
+                             <button class="delete-btn" data-type="income" data-id="' . esc_attr($row->id) . '">Delete</button>
+                         </td>';
                         echo '</tr>';
                     }
                     echo '</table>';
@@ -153,7 +155,10 @@ function sie_display_income_expenses()
                         echo '<td>' . esc_html($row->description) . '</td>';
                         echo '<td>' . esc_html($row->expenses_amount) . '</td>';
                         echo '<td>' . esc_html($row->expenses_date) . '</td>';
-                        echo '<td><button class="edit-btn" data-type="expense" data-id="' . esc_attr($row->id) . '">Edit</button></td>';
+                        echo '<td>
+                             <button class="edit-btn" data-type="expense" data-id="' . esc_attr($row->id) . '">Edit</button>
+                             <button class="delete-btn" data-type="expense" data-id="' . esc_attr($row->id) . '">Delete</button>
+                         </td>';
                         echo '</tr>';
                     }
                     echo '</table>';
@@ -168,22 +173,10 @@ function sie_display_income_expenses()
     <div id="editModal" class="modal">
         <div class="modal-content">
             <span class="close">&times;</span>
-            <form method="post" action="">
+            <form id="editForm" method="post" action="">
                 <input type="hidden" id="edit_id" name="edit_id">
                 <input type="hidden" id="edit_type" name="edit_type">
-
-                <label for="edit_product_name" id="edit_product_name_label">Product Name:</label>
-                <input type="text" id="edit_product_name" name="edit_product_name">
-
-                <label for="edit_description" id="edit_description_label">Description:</label>
-                <input type="text" id="edit_description" name="edit_description">
-
-                <label for="edit_amount">Amount:</label>
-                <input type="number" id="edit_amount" name="edit_amount" step="0.01" required>
-
-                <label for="edit_date">Date:</label>
-                <input type="date" id="edit_date" name="edit_date" required>
-
+                <div id="editFields"></div>
                 <input type="submit" name="sie_edit_submit" value="Update">
             </form>
         </div>
@@ -216,32 +209,59 @@ function sie_display_income_expenses()
             editBtns[i].onclick = function() {
                 var type = this.getAttribute('data-type');
                 var id = this.getAttribute('data-id');
-                var modalTitle = type.charAt(0).toUpperCase() + type.slice(1);
+                var editFields = document.getElementById("editFields");
 
-                modal.style.display = "block";
-                document.getElementById("edit_id").value = id;
-                document.getElementById("edit_type").value = type;
+                jQuery.ajax({
+                    url: '<?php echo admin_url("admin-ajax.php"); ?>',
+                    method: 'POST',
+                    data: {
+                        action: 'sie_get_record',
+                        id: id,
+                        type: type
+                    },
+                    success: function(response) {
+                        if (response.success) {
+                            var record = response.data;
+                            document.getElementById("edit_id").value = record.id;
+                            document.getElementById("edit_type").value = type;
 
-                if (type === 'income') {
-                    document.getElementById('edit_product_name_label').style.display = 'block';
-                    document.getElementById('edit_product_name').style.display = 'block';
-                    document.getElementById('edit_description_label').style.display = 'none';
-                    document.getElementById('edit_description').style.display = 'none';
-                } else {
-                    document.getElementById('edit_product_name_label').style.display = 'none';
-                    document.getElementById('edit_product_name').style.display = 'none';
-                    document.getElementById('edit_description_label').style.display = 'block';
-                    document.getElementById('edit_description').style.display = 'block';
-                }
+                            if (type === 'expense') {
+                                editFields.innerHTML = `
+                                     <label for="edit_description">Expense Description:</label>
+                                     <input type="text" id="edit_description" name="edit_description" value="${record.description}" required>
+                                     
+                                     <label for="edit_amount">Amount Spent:</label>
+                                     <input type="number" id="edit_amount" name="edit_amount" step="0.01" value="${record.expenses_amount}" required>
+                                     
+                                     <label for="edit_date">Date:</label>
+                                     <input type="date" id="edit_date" name="edit_date" value="${record.expenses_date}" required>
+                                 `;
+                            } else {
+                                editFields.innerHTML = `
+                                     <label for="edit_product_name">Product Name:</label>
+                                     <input type="text" id="edit_product_name" name="edit_product_name" value="${record.product_name}" required>
+                                     
+                                     <label for="edit_amount">Amount Collected:</label>
+                                     <input type="number" id="edit_amount" name="edit_amount" step="0.01" value="${record.income_amount}" required>
+                                     
+                                     <label for="edit_date">Date:</label>
+                                     <input type="date" id="edit_date" name="edit_date" value="${record.income_date}" required>
+                                 `;
+                            }
+
+                            modal.style.display = "block";
+                        } else {
+                            alert(response.data);
+                        }
+                    }
+                });
             }
         }
 
-        // When the user clicks on <span> (x), close the modal
         span.onclick = function() {
             modal.style.display = "none";
         }
 
-        // When the user clicks anywhere outside of the modal, close it
         window.onclick = function(event) {
             if (event.target == modal) {
                 modal.style.display = "none";
@@ -250,8 +270,9 @@ function sie_display_income_expenses()
     </script>
 
 <?php
-    return ob_get_clean(); // Return the output buffer contents
+    return ob_get_clean(); // Return the buffered content
 }
+
 add_shortcode('sie_report', 'sie_display_income_expenses');
 ?>
 
@@ -271,3 +292,31 @@ function sie_get_record()
 }
 
 add_action('wp_ajax_sie_get_record', 'sie_get_record');
+
+
+function sie_delete_record()
+{
+    global $wpdb;
+
+    $id = intval($_POST['id']);
+    $type = sanitize_text_field($_POST['type']);
+
+    if ($type === 'expense') {
+        $table_name = $wpdb->prefix . 'sie_expenses';
+    } else {
+        $table_name = $wpdb->prefix . 'sie_income';
+    }
+
+    $deleted = $wpdb->delete($table_name, array('id' => $id), array('%d'));
+
+    if ($deleted) {
+        wp_send_json_success('Record deleted successfully.');
+    } else {
+        wp_send_json_error('Failed to delete the record.');
+    }
+
+    wp_die(); // This is required to terminate immediately and return a proper response
+}
+
+add_action('wp_ajax_sie_delete_record', 'sie_delete_record');
+add_action('wp_ajax_nopriv_sie_delete_record', 'sie_delete_record');
