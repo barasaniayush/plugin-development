@@ -33,4 +33,3 @@ function sie_manager_install() {
 }
 
 register_activation_hook(__FILE__, 'sie_manager_install');
-
