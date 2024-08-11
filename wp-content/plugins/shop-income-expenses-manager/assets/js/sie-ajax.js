@@ -295,3 +295,34 @@ jQuery(document).ready(function($) {
     }
 });
 
+jQuery(document).ready(function($) {
+    $('#filter_type').on('change', function() {
+        if ($(this).val() === 'custom') {
+            $('#custom_date_filter').show();
+        } else {
+            $('#custom_date_filter').hide();
+        }
+    });
+
+    $('#filter_records').on('click', function() {
+        var filterType = $('#filter_type').val();
+        var startDate = $('#start_date').val();
+        var endDate = $('#end_date').val();
+
+        $.ajax({
+            url: ajaxurl, // Update with your AJAX URL
+            method: 'POST',
+            data: {
+                action: 'filter_records',
+                filter_type: filterType,
+                start_date: startDate,
+                end_date: endDate
+            },
+            success: function(response) {
+                $('#records_table').html(response);
+            }
+        });
+    });
+});
+
+

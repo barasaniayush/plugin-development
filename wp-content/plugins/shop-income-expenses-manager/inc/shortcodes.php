@@ -115,6 +115,21 @@ function sie_display_income_expenses()
 
         <div id="viewRecords" class="tabcontent">
             <h3>View Records</h3>
+            <select id="filter_type">
+                <option value="daily">Daily</option>
+                <option value="weekly">Weekly</option>
+                <option value="monthly">Monthly</option>
+                <option value="custom">Custom Date Range</option>
+            </select>
+
+            <!-- Custom Date Range Inputs -->
+            <div id="custom_date_filter" style="display:none;">
+                <input type="date" id="start_date">
+                <input type="date" id="end_date">
+            </div>
+
+            <button id="filter_records">Filter</button>
+
             <div id="incomeRecords">
                 <h4>Income Records</h4>
                 <?php
@@ -299,7 +314,8 @@ function sie_get_record()
 
 add_action('wp_ajax_sie_get_record', 'sie_get_record');
 
-function sie_add_income() {
+function sie_add_income()
+{
     global $wpdb;
 
     $product_name = sanitize_text_field($_POST['product_name']);
@@ -327,7 +343,8 @@ function sie_add_income() {
 }
 add_action('wp_ajax_sie_add_income', 'sie_add_income');
 
-function sie_add_expense() {
+function sie_add_expense()
+{
     global $wpdb;
 
     $description = sanitize_text_field($_POST['expense_description']);
@@ -426,7 +443,7 @@ add_action('wp_ajax_nopriv_sie_delete_record', 'sie_delete_record');
 function sie_get_all_records()
 {
     global $wpdb;
-    
+
     $income_table = $wpdb->prefix . 'sie_income';
     $expense_table = $wpdb->prefix . 'sie_expenses';
 
@@ -582,3 +599,32 @@ add_action('wp_ajax_sie_get_all_records', 'sie_get_all_records');
         $('.tablinks:first').click();
     });
 </script>
+
+<?php
+// Example for filtering records
+function get_filtered_records($filter_type, $start_date = '', $end_date = '')
+{
+    global $wpdb;
+
+    $query = "SELECT * FROM your_table_name WHERE 1=1";
+
+    // Daily Filter
+    if ($filter_type == 'daily') {
+        $query .= " AND DATE(record_date) = CURDATE()";
+
+        // Weekly Filter
+    } elseif ($filter_type == 'weekly') {
+        $query .= " AND WEEK(record_date) = WEEK(CURDATE())";
+
+        // Monthly Filter
+    } elseif ($filter_type == 'monthly') {
+        $query .= " AND MONTH(record_date) = MONTH(CURDATE())";
+
+        // Custom Date Range
+    } elseif ($filter_type == 'custom' && !empty($start_date) && !empty($end_date)) {
+        $query .= $wpdb->prepare(" AND DATE(record_date) BETWEEN %s AND %s", $start_date, $end_date);
+    }
+
+    $results = $wpdb->get_results($query);
+    return $results;
+}
