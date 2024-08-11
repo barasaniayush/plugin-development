@@ -7,9 +7,7 @@
  */
 function sie_display_income_expenses()
 {
-    ob_start(); // Start output buffering
-
-    // Form handling
+    ob_start();
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         global $wpdb;
 

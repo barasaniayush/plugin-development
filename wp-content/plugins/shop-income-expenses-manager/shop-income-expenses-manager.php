@@ -34,3 +34,8 @@ function sie_enqueue_styles() {
 }
 
 add_action('wp_enqueue_scripts', 'sie_enqueue_styles');
+
+// Register the activation hook to create the database tables
+register_activation_hook(__FILE__, 'sie_manager_install');
+
+?>
